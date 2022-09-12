@@ -108,6 +108,12 @@ static class Program
                                  MessageBoxButtons.OK,
                                  MessageBoxIcon.Error);
             Console.WriteLine("Bannerlord.exe not found");
+
+            if (crpgLauncherConfigFound) // Delete config if file was invalid
+            {
+                File.Delete(configPath);
+            }
+
             return;
         }
 
