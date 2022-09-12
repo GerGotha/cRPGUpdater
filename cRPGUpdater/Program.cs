@@ -77,10 +77,9 @@ static class Program
                 }
             }
         }
-
         if (targetPath == String.Empty)
         {
-            var result = MessageBox.Show("Could not detect your Mount & Blade II Bannerlord location.\n\nPlease pick your Mount & Blade II Bannerlord Steam installation.", "Could not detect your Mount & Blade II Bannerlord steam path.",
+            var result = MessageBox.Show("Could not find your Mount & Blade II Bannerlord location.\n\nPlease select your Mount & Blade II Bannerlord directory.", "Mount & Blade II Bannerlord not found",
                                  MessageBoxButtons.OKCancel,
                                  MessageBoxIcon.Warning);
             if(result != DialogResult.OK)
@@ -122,7 +121,7 @@ static class Program
             {
                 if (!IsProcessRunning("steam"))
                 {
-                    var result = MessageBox.Show("Steam is not running. You need to run steam to play cRPG.", "Error starting cRPG",
+                    var result = MessageBox.Show("Steam is not running. You need to run steam to play cRPG.", "Steam is not running",
                                     MessageBoxButtons.AbortRetryIgnore,
                                     MessageBoxIcon.Warning);
                     if(result == DialogResult.Abort)
