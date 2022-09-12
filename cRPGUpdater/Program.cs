@@ -42,39 +42,38 @@ static class Program
             }
         }
 
-        if(!crpgLauncherConfigFound)
+        string? steamInstallPath = (string?)Registry.GetValue(keyName, "SteamPath", null);
+        if (!crpgLauncherConfigFound)
         {
-            string? steamInstallPath = (string?)Registry.GetValue(keyName, "SteamPath", null);
-
-            if (steamInstallPath == null)
-                return;
-
-            string steamLibraryVdfPath = steamInstallPath + "\\steamapps\\libraryfolders.vdf";
-            VProperty libraryVdf = VdfConvert.Deserialize(File.ReadAllText(steamLibraryVdfPath));
-
-            List<string> steamBlPaths = new List<string>();
-            int counter = 0;
-            while (true)
+            if (steamInstallPath != null)
             {
-                string index = counter.ToString();
-                if (libraryVdf.Value[index] == null)
-                    break;
+                string steamLibraryVdfPath = steamInstallPath + "\\steamapps\\libraryfolders.vdf";
+                VProperty libraryVdf = VdfConvert.Deserialize(File.ReadAllText(steamLibraryVdfPath));
 
-                if (libraryVdf.Value[index]?["path"] == null)
-                    continue;
-
-                string? path = libraryVdf.Value[index]?["path"]?.ToString();
-                path += @"\steamapps\common\Mount & Blade II Bannerlord";
-                steamBlPaths.Add(path);
-                counter++;
-            }
-
-            foreach (string steamBlPath in steamBlPaths)
-            {
-                if (Directory.Exists(steamBlPath))
+                List<string> steamBlPaths = new List<string>();
+                int counter = 0;
+                while (true)
                 {
-                    targetPath = steamBlPath;
-                    break;
+                    string index = counter.ToString();
+                    if (libraryVdf.Value[index] == null)
+                        break;
+
+                    if (libraryVdf.Value[index]?["path"] == null)
+                        continue;
+
+                    string? path = libraryVdf.Value[index]?["path"]?.ToString();
+                    path += @"\steamapps\common\Mount & Blade II Bannerlord";
+                    steamBlPaths.Add(path);
+                    counter++;
+                }
+
+                foreach (string steamBlPath in steamBlPaths)
+                {
+                    if (Directory.Exists(steamBlPath))
+                    {
+                        targetPath = steamBlPath;
+                        break;
+                    }
                 }
             }
         }
@@ -117,6 +116,35 @@ static class Program
             return;
         }
 
+        if(steamInstallPath != null && Directory.Exists(steamInstallPath))
+        {
+            while (true)
+            {
+                if (!IsProcessRunning("steam"))
+                {
+                    var result = MessageBox.Show("Steam is not running. You need to run steam to play cRPG.", "Error starting cRPG",
+                                    MessageBoxButtons.AbortRetryIgnore,
+                                    MessageBoxIcon.Warning);
+                    if(result == DialogResult.Abort)
+                    {
+                        return;
+                    }
+                    else if (result == DialogResult.Retry)
+                    {
+                        continue;
+                    }
+                    else if (result == DialogResult.Ignore)
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
         if (!crpgLauncherConfigFound)
         {
             File.WriteAllText(configPath, targetPath);
@@ -153,6 +181,12 @@ static class Program
 
         Process.Start(startInfo);
 
+    }
+
+    private static bool IsProcessRunning(string name)
+    {
+        Process[] pname = Process.GetProcessesByName(name); 
+        return pname.Length != 0;
     }
 
 }
