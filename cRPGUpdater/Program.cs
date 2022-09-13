@@ -3,25 +3,28 @@ using Gameloop.Vdf.Linq;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Windows.Forms;
+using System.Net;
+using System.Net.Http.Headers;
 
 
 static class Program
 {
-    const string downloadUrl = "https://c-rpg.eu/cRPG.zip";
+    const string crpgWebsite = @"http://c-rpg.eu";
+    const string crpgModFile = @"cRPG.zip";
+    const string downloadUrl = crpgWebsite + @"/"+ crpgModFile;
     const string userRoot = "HKEY_CURRENT_USER";
     const string subkey = @"Software\Valve\Steam";
     const string keyName = userRoot + "\\" + subkey;
     const string crpgLauncherConfig = @"\CrpgLauncherPath.txt";
-
+    const string crpgLauncherVersion = @"\CrpgLauncherVersion.txt";
 
 
     [STAThread]
     static void Main(string[] args)
     {
-
         MainAsync().GetAwaiter().GetResult();
     }
+
 
     private static async Task MainAsync()
     {
@@ -30,6 +33,9 @@ static class Program
         bool crpgLauncherConfigFound = false;
         string targetPath = String.Empty;
         string configPath = crpgDocumentPath + crpgLauncherConfig;
+        string versionPath = crpgDocumentPath + crpgLauncherVersion;
+
+        var (updateAvailable, tag) = await UpdateAvailable(versionPath);
 
         if (Directory.Exists(crpgDocumentPath) && File.Exists(configPath))
         {
@@ -105,7 +111,6 @@ static class Program
             MessageBox.Show("Could not find your Bannerlord.exe", "Bannerlord.exe not found",
                                  MessageBoxButtons.OK,
                                  MessageBoxIcon.Error);
-            Console.WriteLine("Bannerlord.exe not found");
 
             if (crpgLauncherConfigFound) // Delete config if file was invalid
             {
@@ -148,7 +153,64 @@ static class Program
         {
             File.WriteAllText(configPath, targetPath);
         }
+        if (updateAvailable)
+        {
+            bool updated = await UpdateFiles(downloadUrl, targetPath);
+            if (updated)
+            {
+                File.WriteAllText(versionPath, tag ?? "error");
+            }
+        }
 
+        ProcessStartInfo startInfo = new ProcessStartInfo();
+        startInfo.WorkingDirectory = Path.GetDirectoryName(blPathExe);
+        startInfo.FileName = "Bannerlord.exe";
+        startInfo.Arguments = "_MODULES_*Native*cRPG*_MODULES_ /multiplayer";
+        startInfo.UseShellExecute = true;
+
+        Process.Start(startInfo);
+
+    }
+
+    private async static Task<(bool, string?)> UpdateAvailable(string versionPath)
+    {
+        string? tag = null;
+        if (File.Exists(versionPath))
+        {
+            tag = File.ReadAllText(versionPath);
+        }
+
+        using HttpClient httpClient = new() { BaseAddress = new Uri(crpgWebsite) };
+        HttpRequestMessage req = new(HttpMethod.Get, crpgModFile);
+        if (tag != null)
+        {
+            req.Headers.IfNoneMatch.Add(new EntityTagHeaderValue(tag));
+        }
+
+        var res = await httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+        if (res.StatusCode == HttpStatusCode.NotModified)
+        {
+            return (false, null);
+        }
+
+        try
+        {
+            res.EnsureSuccessStatusCode();
+            tag = res.Headers.ETag?.Tag;
+        }
+        catch (HttpRequestException)
+        {
+            MessageBox.Show("Could not check for any updates.", "Update check failed",
+                                 MessageBoxButtons.OK,
+                                 MessageBoxIcon.Warning);
+            return (false, null);
+        }
+
+        return (true, tag); ;
+    }
+
+    private async static Task<bool> UpdateFiles(string downloadUrl, string targetPath)
+    {
         string modulesPath = targetPath + @"\Modules";
         string crpgPath = modulesPath + @"\cRPG";
 
@@ -163,7 +225,7 @@ static class Program
         fileStream.Close();
 
         if (!File.Exists(downloadPath))
-            return;
+            return false;
 
         if (Directory.Exists(crpgPath))
             Directory.Delete(crpgPath, true);
@@ -171,15 +233,7 @@ static class Program
         Directory.CreateDirectory(crpgPath);
         ZipFile.ExtractToDirectory(downloadPath, crpgPath);
         File.Delete(downloadPath);
-
-        ProcessStartInfo startInfo = new ProcessStartInfo();
-        startInfo.WorkingDirectory = Path.GetDirectoryName(blPathExe);
-        startInfo.FileName = "Bannerlord.exe";
-        startInfo.Arguments = "_MODULES_*Native*cRPG*_MODULES_ /multiplayer";
-        startInfo.UseShellExecute = true;
-
-        Process.Start(startInfo);
-
+        return true;
     }
 
     private static bool IsProcessRunning(string name)
